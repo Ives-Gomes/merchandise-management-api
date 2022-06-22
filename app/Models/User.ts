@@ -1,17 +1,18 @@
 import { DateTime } from 'luxon'
-import { BaseModel, column, HasMany, hasMany } from '@ioc:Adonis/Lucid/Orm'
+import { BaseModel, column, HasMany, hasMany, ManyToMany, manyToMany } from '@ioc:Adonis/Lucid/Orm'
 
 import { v4 as uuidv4 } from 'uuid'
 
 import Address from './Address'
 import Purchase from './Purchase'
+import Role from './Role'
 
 export default class User extends BaseModel {
   @column({ isPrimary: true })
   public id: number
 
   @column()
-  public secure_id: typeof uuidv4
+  public secureId: string
 
   @column()
   public name: string
@@ -36,4 +37,9 @@ export default class User extends BaseModel {
 
   @hasMany(() => Purchase)
   public purchases: HasMany<typeof Purchase>
+
+  @manyToMany(() => Role, {
+    pivotTable: 'user_roles',
+  })
+  public roles: ManyToMany<typeof Role>
 }

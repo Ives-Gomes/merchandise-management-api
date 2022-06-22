@@ -10,7 +10,7 @@ export default class Product extends BaseModel {
   public id: number
 
   @column()
-  public secureId: typeof uuidv4
+  public secureId: string
 
   @column()
   public name: string
