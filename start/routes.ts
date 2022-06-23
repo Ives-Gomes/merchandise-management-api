@@ -27,4 +27,4 @@ Route.group(() => {
   })
 })
   .prefix('v1/api')
-  .middleware('auth')
+  .middleware(['auth', 'is:admin'])
