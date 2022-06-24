@@ -30,7 +30,7 @@ export default class StoreValidator extends MessagesCustom {
     city: schema.string({ trim: true }, [rules.maxLength(50)]),
     street: schema.string({ trim: true }, [rules.maxLength(250)]),
     district: schema.string.optional({ trim: true }, [rules.maxLength(250)]),
-    number: schema.string.optional({ trim: true }, [rules.unsigned()]),
+    number: schema.number.optional([rules.unsigned()]),
     complement: schema.string.optional({ trim: true }, [rules.maxLength(250)]),
   })
 }
