@@ -1,27 +1,27 @@
-import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
+import { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import Database from '@ioc:Adonis/Lucid/Database'
-
-import User from 'App/Models/User'
-import Role from 'App/Models/Role'
 import Address from 'App/Models/Address'
+import Role from 'App/Models/Role'
+import User from 'App/Models/User'
 
 import StoreValidator from 'App/Validators/User/StoreValidator'
 import UpdateValidator from 'App/Validators/User/UpdateValidator'
+import AccessAllowValidator from 'App/Validators/User/AccessAllowValidator'
 
 export default class UsersController {
-  public async index({ request, response }: HttpContextContract) {
+  public async index({ response, request }: HttpContextContract) {
     const { page, perPage, noPaginate, ...inputs } = request.qs()
 
-    try {
-      if (noPaginate) {
-        return User.query()
-          .preload('addresses')
-          .preload('roles', (roleTable) => {
-            roleTable.select('id', 'name')
-          })
-          .filter(inputs)
-      }
+    if (noPaginate) {
+      return User.query()
+        .preload('addresses')
+        .preload('roles', (roleTable) => {
+          roleTable.select('id', 'name')
+        })
+        .filter(inputs)
+    }
 
+    try {
       const users = await User.query()
         .preload('addresses')
         .preload('roles', (roleTable) => {
@@ -32,26 +32,11 @@ export default class UsersController {
 
       return response.ok(users)
     } catch (error) {
-      return response.badRequest({ message: 'Error in users list', originalError: error.message })
+      return response.badRequest({ message: 'error in list users', originalError: error.message })
     }
   }
 
-  public async show({ response, params }: HttpContextContract) {
-    const userSecureId = params.id
-
-    try {
-      const user = await User.query()
-        .where('secure_id', userSecureId)
-        .preload('addresses')
-        .preload('roles')
-
-      return response.ok(user)
-    } catch (error) {
-      return response.notFound({ message: 'User not found', originalError: error.message })
-    }
-  }
-
-  public async store({ request, response }: HttpContextContract) {
+  public async store({ response, request }: HttpContextContract) {
     await request.validate(StoreValidator)
 
     const bodyUser = request.only(['name', 'cpf', 'email', 'password'])
@@ -71,13 +56,10 @@ export default class UsersController {
 
     try {
       userCreated = await User.create(bodyUser, trx)
-
       const roleClient = await Role.findBy('name', 'client')
-
       if (roleClient) await userCreated.related('roles').attach([roleClient.id], trx)
     } catch (error) {
       trx.rollback()
-
       return response.badRequest({ message: 'Error in create user', originalError: error.message })
     }
 
@@ -85,23 +67,21 @@ export default class UsersController {
       await userCreated.related('addresses').create(bodyAddress)
     } catch (error) {
       trx.rollback()
-
       return response.badRequest({
         message: 'Error in create address',
         originalError: error.message,
       })
     }
 
-    let userFind
-
+    let user
     try {
-      userFind = await User.query()
+      user = await User.query()
         .where('id', userCreated.id)
         .preload('roles')
         .preload('addresses')
+        .firstOrFail()
     } catch (error) {
       trx.rollback()
-
       return response.badRequest({
         message: 'Error in find user',
         originalError: error.message,
@@ -110,10 +90,26 @@ export default class UsersController {
 
     trx.commit()
 
-    return response.ok(userFind)
+    return response.ok(user)
   }
 
-  public async update({ request, response, params }: HttpContextContract) {
+  public async show({ response, params }: HttpContextContract) {
+    const userSecureId = params.id
+
+    try {
+      const user = await User.query()
+        .where('secure_id', userSecureId)
+        .preload('addresses')
+        .preload('roles')
+        .firstOrFail()
+
+      return response.ok(user)
+    } catch (error) {
+      return response.notFound({ message: 'User not found', originalError: error.message })
+    }
+  }
+
+  public async update({ response, request, params }: HttpContextContract) {
     await request.validate(UpdateValidator)
 
     const userSecureId = params.id
@@ -141,37 +137,34 @@ export default class UsersController {
       await userUpdated.merge(bodyUser).save()
     } catch (error) {
       trx.rollback()
-
       return response.badRequest({ message: 'Error in update user', originalError: error.message })
     }
 
     try {
-      const addressesUpdtated = await Address.findByOrFail('id', bodyAddress.addressId)
+      const addressesUpdated = await Address.findByOrFail('id', bodyAddress.addressId)
 
-      addressesUpdtated.useTransaction(trx)
+      addressesUpdated.useTransaction(trx)
 
       delete bodyAddress.addressId
 
-      await addressesUpdtated.merge(bodyAddress).save()
+      await addressesUpdated.merge(bodyAddress).save()
     } catch (error) {
       trx.rollback()
-
       return response.badRequest({
         message: 'Error in update address',
         originalError: error.message,
       })
     }
 
-    let userFind
-
+    let user
     try {
-      userFind = await User.query()
+      user = await User.query()
         .where('id', userUpdated.id)
         .preload('roles')
         .preload('addresses')
+        .firstOrFail()
     } catch (error) {
       trx.rollback()
-
       return response.badRequest({
         message: 'Error in find user',
         originalError: error.message,
@@ -180,18 +173,51 @@ export default class UsersController {
 
     trx.commit()
 
-    return response.ok(userFind)
+    return response.ok(user)
   }
 
   public async destroy({ response, params }: HttpContextContract) {
     const userSecureId = params.id
 
     try {
-      await User.query().where('secure_id', userSecureId).delete()
+      const userFind = await User.findByOrFail('secure_id', userSecureId)
 
-      return response.ok({ message: 'User deleted successfully' })
+      await userFind.delete()
+
+      return response.ok({ message: 'user deleted successfully' })
     } catch (error) {
       return response.notFound({ message: 'User not found', originalError: error.message })
+    }
+  }
+
+  public async AccessAllow({ response, request }: HttpContextContract) {
+    await request.validate(AccessAllowValidator)
+
+    const { user_id, roles } = request.all()
+
+    try {
+      const userAllow = await User.findByOrFail('id', user_id)
+
+      let roleIds: number[] = []
+      await Promise.all(
+        roles.map(async (roleName) => {
+          const hasRole = await Role.findBy('name', roleName)
+          if (hasRole) roleIds.push(hasRole.id)
+        })
+      )
+
+      await userAllow.related('roles').sync(roleIds)
+    } catch (error) {
+      return response.badRequest({ message: 'Error in access allow', originalError: error.message })
+    }
+
+    try {
+      return User.query().where('id', user_id).preload('roles').preload('addresses').firstOrFail()
+    } catch (error) {
+      return response.badRequest({
+        message: 'Error in find user',
+        originalError: error.message,
+      })
     }
   }
 }
