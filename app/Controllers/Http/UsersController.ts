@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import Database from '@ioc:Adonis/Lucid/Database'
 import Address from 'App/Models/Address'
@@ -7,6 +8,8 @@ import User from 'App/Models/User'
 import StoreValidator from 'App/Validators/User/StoreValidator'
 import UpdateValidator from 'App/Validators/User/UpdateValidator'
 import AccessAllowValidator from 'App/Validators/User/AccessAllowValidator'
+
+import { sendMail } from 'App/Services/sendMail'
 
 export default class UsersController {
   public async index({ response, request }: HttpContextContract) {
@@ -84,6 +87,16 @@ export default class UsersController {
       trx.rollback()
       return response.badRequest({
         message: 'Error in find user',
+        originalError: error.message,
+      })
+    }
+
+    try {
+      await sendMail(user, 'email/welcome')
+    } catch (error) {
+      trx.rollback()
+      return response.badRequest({
+        message: 'Error in send email welcome',
         originalError: error.message,
       })
     }
