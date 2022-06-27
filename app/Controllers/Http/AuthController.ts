@@ -1,4 +1,5 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
+import Env from '@ioc:Adonis/Core/Env'
 
 import User from 'App/Models/User'
 
@@ -11,7 +12,7 @@ export default class AuthController {
     try {
       const token = await auth.use('api').attempt(email, password, {
         name: user?.name,
-        // expiresIn: '30mins',
+        expiresIn: Env.get('NODE_ENV') === 'development' ? '' : '30mins',
       })
 
       return { token, user }
